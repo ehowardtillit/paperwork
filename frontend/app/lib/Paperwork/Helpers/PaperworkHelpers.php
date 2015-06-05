@@ -231,7 +231,7 @@ class PaperworkHelpers {
                     }
                     
                     // If commits are not equal, check timestamps
-                    if($localLatestSha1 === $upstreamHeadSha1) {
+                    if($localLatestSha1 !== $upstreamHeadSha1) {
                         $localTimestamp = exec("git show -s --format=%ci $localLatestSha1");
                         curl_setopt($ch, CURLOPT_URL, $jsonResult->object->url);
                         $content = curl_exec($ch);
