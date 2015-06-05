@@ -190,7 +190,7 @@ class PaperworkHelpers {
 
         if (!$cachedInfo[0] && !$cachedInfo[1]) {
             $resolver = strtolower(substr(PHP_OS, 0, 3)) == 'win' ? 'where.exe' : 'command -v';
-	    $gitOutput = "";
+	        $gitOutput = "";
             exec("$resolver git", $gitOutput);
 
             if (!empty($gitOutput) && (function_exists('curl_init') !== false)) {
@@ -203,37 +203,57 @@ class PaperworkHelpers {
                 curl_setopt($ch, CURLOPT_USERAGENT, "Colorado");
 
                 $content = curl_exec($ch);
-
-                $jsonFromApi   = array();
-                $jsonFromApi[] = json_decode($content);
-                $jsonResult    = $jsonFromApi[0];
-
-                if (isset($jsonResult->object->sha)) {
-                    $upstreamHeadSha1 = str_replace('"', '', $jsonResult->object->sha);
-                } else {
-                    $upstreamHeadSha1 = "";
+                /* If user is in a branch named differently from Paperwork's */
+                $info = curl_getinfo($ch);
+                if($info["http_code"] == 404) {
+                    // No branch with this name in base repo 
+                    return array(0, 0, 0, 0);
+                }else{
+                    $jsonFromApi   = array();
+                    $jsonFromApi[] = json_decode($content);
+                    $jsonResult    = $jsonFromApi[0];
+    
+                    if (isset($jsonResult->object->sha)) {
+                        $upstreamHeadSha1 = str_replace('"', '', $jsonResult->object->sha);
+                    } else {
+                        $upstreamHeadSha1 = "";
+                    }
+    
+                    // Retrieve last commit on install.
+                    preg_match('/^.*\n/', shell_exec('git log'), $matches);
+    
+                    $localLatestSha1 = '';
+    
+                    if (!empty($matches[0]) && stripos($matches[0], 'commit') !== false) {
+                        $matchSeparated = explode(' ', $matches[0]);
+    
+                        $localLatestSha1 = trim(end($matchSeparated));
+                    }
+                    
+                    // If commits are not equal, check timestamps
+                    if($localLatestSha1 !== $upstreamHeadSha1) {
+                        $localTimestamp = exec("git show -s --format=%ci $localLatestSha1");
+                        curl_setopt($ch, CURLOPT_URL, $jsonResult->object->url);
+                        $content = curl_exec($ch);
+                        $jsonFromApiTimestamp = array();
+                        $jsonFromApiTimestamp[] = json_decode($content);
+                        $jsonResultTimestamp = $jsonFromApiTimestamp[0];
+                        $upstreamTimestamp = $jsonResultTimestamp->committer->date;
+                    }else{
+                        $localTimestamp = "";
+                        $upstreamTimestamp = "";
+                    }
+    
+                    // Check for update daily(UTC).
+                    $now = Carbon::now();
+    
+                    $tomorrow = Carbon::parse('tomorrow');
+    
+                    \Cache::put(
+                        'paperwork.commitInfo',
+                        [$localLatestSha1, $upstreamHeadSha1, $localTimestamp, $upstreamTimestamp],
+                        $now->diffInMinutes($tomorrow));
                 }
-
-                // Retrieve last commit on install.
-                preg_match('/^.*\n/', shell_exec('git log'), $matches);
-
-                $localLatestSha1 = '';
-
-                if (!empty($matches[0]) && stripos($matches[0], 'commit') !== false) {
-                    $matchSeparated = explode(' ', $matches[0]);
-
-                    $localLatestSha1 = trim(end($matchSeparated));
-                }
-
-                // Check for update daily(UTC).
-                $now = Carbon::now();
-
-                $tomorrow = Carbon::parse('tomorrow');
-
-                \Cache::put(
-                    'paperwork.commitInfo',
-                    [$localLatestSha1, $upstreamHeadSha1],
-                    $now->diffInMinutes($tomorrow));
             }
 
         }

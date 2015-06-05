@@ -1,7 +1,7 @@
 <div class="error-reporting">
     <?php
 
-    list($lastCommitOnInstall, $upstreamLatest) = PaperworkHelpers::getHashes();
+    list($lastCommitOnInstall, $upstreamLatest, $lastCommitTimestamp, $upstreamTimestamp) = PaperworkHelpers::getHashes();
     ?>
     @if(empty($lastCommitOnInstall))
         <div class="alert alert-warning" role="alert">
@@ -10,6 +10,10 @@
     @elseif($lastCommitOnInstall === $upstreamLatest)
         <div class="alert alert-warning" role="alert">
             <p>[[Lang::get('messages.found_bug')]]</p>
+        </div>
+    @elseif(strtotime($upstreamTimestamp) < strtotime($lastCommitTimestamp))
+        <div class="alert alert-warning" role="alert">
+            <p>[[ Lang::get('messages.found_bug_newer_commit_installed') ]]</p>
         </div>
     @else
         <div class="alert alert-danger" role="alert">
